@@ -362,6 +362,8 @@ function validate(input, callback) {
       return validate.validateSigned(input, callback);
     if (isUrl(input))
       return validate.validateHostedUrl(input, callback);
+    if (isJson(input))
+      return validate.validateHosted(JSON.parse(input), callback, '');
     return callback(makeError('input', 'not a valid signed badge or url', { input: input }));
   }
   return callback(makeError('input', 'input must be a string or object', { input: input }));
@@ -703,6 +705,10 @@ function validateInterdependentFields(info, cb) {
   cb(objectIfKeys(errs), info);
 }
 
+function isJson (str) {
+  try { JSON.parse(str); return true } catch(e) { return false }
+}
+
 module.exports = validate;
 
 validate.sha256 = sha256;
@@ -725,3 +731,4 @@ validate.doesHashedEmailMatch = doesHashedEmailMatch;
 validate.VALID_HASHES = VALID_HASHES;
 validate.validateOldInterdependentFields = validateOldInterdependentFields;
 validate.validateInterdependentFields = validateInterdependentFields;
+validate.validate = validate;
