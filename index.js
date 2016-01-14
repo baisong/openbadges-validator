@@ -75,7 +75,7 @@ function getAssertionGUID(urlOrSignature, callback) {
     return callback(null, hostedAssertionGUID(urlOrSignature));
   unpackJWS(urlOrSignature, function(err, payload) {
     if (err) return callback(err);
-    var errors = validateAssertion(payload);
+    var errors = detectAndValidateAssertion(payload);
     if (errors)
       return callback(makeError('structure', 'invalid assertion structure', {
         assertion: errors
@@ -87,17 +87,37 @@ function getAssertionGUID(urlOrSignature, callback) {
 function isOldAssertion(assertion) {
   if (!assertion)
     return null;
-  if (!isObject(assertion.badge))
-    return false;
-  if (!isObject(assertion.badge.issuer))
-    return false;
-  return true;
+  return detectSpecVersion(assertion) === "0.5.0";
 }
 
-function validateAssertion(assertion, prefix){
-  if (isOldAssertion(assertion))
-    return validateOldAssertion(assertion);
-  return validateBadgeAssertion(assertion);
+function detectSpecVersion(assertion) {
+  if (hasRequiredLDProperties(assertion))
+    return "1.1.0";
+  if (!isObject(assertion.badge))
+    return "1.0.0";
+  if (!isObject(assertion.badge.issuer))
+    return "1.0.0";
+  return "0.5.0";
+}
+
+function hasRequiredLDProperties(assertion) {
+  return (typeof assertion["@context"] !== "undefined" && typeof assertion.type !== "undefined");
+}
+
+function detectAndValidateAssertion(assertion, prefix) {
+  var specVersion = detectSpecVersion(assertion);
+  switch (specVersion) {
+    case "1.1.0":
+      return validateNewAssertion(assertion);
+      break;
+    case "1.0.0":
+      return validateBadgeAssertion(assertion);
+      break;
+    case "0.5.0":
+    default:
+      return validateOldAssertion(assertion);
+      break;
+  }
 }
 
 function validateBadgeAssertion(assertion, prefix) {
@@ -370,7 +390,7 @@ function validate(input, callback) {
 function validateStructures(structures, callback) {
   const errMsg = 'invalid assertion structure';
   const errors = {
-    assertion: validateAssertion(structures.assertion),
+    assertion: detectAndValidateAssertion(structures.assertion),
     badge: validateBadgeClass(structures.badge),
     issuer: validateIssuerOrganization(structures.issuer),
   }
@@ -401,7 +421,7 @@ function checkRevoked(list, assertion) {
 }
 
 function fullValidateOldAssertion(assertion, callback, originalUrl) {
-  const structuralErrors = validateAssertion(assertion);
+  const structuralErrors = detectAndValidateAssertion(assertion);
   if (structuralErrors)
     return callback(makeError('structure', structuralErrors));
   getLinkedResources(assertion, function (err, resources) {
@@ -711,7 +731,7 @@ validate.validateHostedUrl = validateHostedUrl;
 validate.validateSigned = validateSigned;
 validate.isOldAssertion = isOldAssertion;
 validate.absolutize = absolutize;
-validate.assertion = validateAssertion;
+validate.assertion = detectAndValidateAssertion;
 validate.badgeClass = validateBadgeClass;
 validate.issuerOrganization = validateIssuerOrganization;
 validate.isSignedBadge = isSignedBadge
